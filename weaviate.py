@@ -34,7 +34,3 @@ def add_data(data):
 
 def query_similar_articles(embedding):
     return client.query.get("Article", ["url", "title"]).with_near_vector(embedding).do()
-
-
-def get_data(): 
-    
