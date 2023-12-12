@@ -39,26 +39,6 @@ def extract_headline(url):
         return None
 
 
-def make_txt():
-    file_path = 'hrefs.txt'  # Replace with your file path
-    urls = extract_links_from_file(file_path)
-
-    articles = []
-    for url in urls:
-        content = extract_main_content(url)
-        headline = extract_headline(url)
-
-        article = {
-            "url": url,
-            "title": headline,
-            "content": content
-        }
-        articles.append(article)
-
-    with open('articles.json', 'w') as file:
-        json.dump(articles, file)
-
-
 def makeSoup(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -99,7 +79,22 @@ def scrape_urls(urls, output_file):
     file.close()
 
 
-urls = ['https://www.theguardian.com', 'https://www.bbc.co.uk/news', 'https://www.theverge.com', 'https://news.ycombinator.com', 'https://www.technologyreview.com']
+def get_data(urls):
+    scrape_urls(urls, 'hrefs.txt')
+    file_path = 'hrefs.txt'  # Replace with your file path
+    urls = extract_links_from_file(file_path)
 
-make_txt()
-scrape_urls(urls, 'hrefs.txt')
+    articles = []
+    for url in urls:
+        content = extract_main_content(url)
+        headline = extract_headline(url)
+
+        article = {
+            "url": url,
+            "title": headline,
+            "content": content
+        }
+        articles.append(article)
+
+    with open('articles.json', 'w') as file:
+        json.dump(articles, file)
