@@ -6,25 +6,57 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv('OPENAI'))
 
-def askGPT(links):
-    response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {
-        "role": "user",
-        "content": "Review the following list of links or url extensions and identify specific strings that are likely to indicate non-article pages. Look for patterns or keywords that suggest the link is to a help page, user profile, administrative or organizational content, or other non-article pages. Exclude strings that represent broad article categories or general topics to ensure we don't accidentally filter out actual articles. The goal is to remove only those links that are definitively not articles, such as links to about pages, user accounts, settings, or corporate information. Here are some of the links:" + str(links[:100]) + "\n\n Always respond in the following format: ['string1', 'string2', 'string3'] \n\n" 
+def extract_links_from_file(file_path):
+    with open(file_path, 'r') as file:
+        return [line.strip() for line in file]
+
+
+def extract_main_content(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+        soup = BeautifulSoup(response.content, 'lxml')
+        # Here you can add logic to extract the main content
+        # For example, if the main content is in a specific tag
+        main_content = soup.find('main')  # This is just an example
+        return main_content.text if main_content else None
+    except requests.RequestException as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
+
+def extract_headline(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Attempt to find the headline in an <h1> tag or <title> tag
+        headline = soup.find('h1') or soup.find('title')
+        return headline.text.strip() if headline else None
+    except requests.RequestException as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
+
+def make_txt():
+    file_path = 'hrefs.txt'  # Replace with your file path
+    urls = extract_links_from_file(file_path)
+
+    articles = []
+    for url in urls:
+        content = extract_main_content(url)
+        headline = extract_headline(url)
+
+        article = {
+            "url": url,
+            "title": headline,
+            "content": content
         }
-    ],
-    temperature=1,
-    max_tokens=256,
-    top_p=1,
-    frequency_penalty=0,
-    presence_penalty=0
-    )
-    
-    return response.choices[0].message.content
+        articles.append(article)
+
+    with open('articles.json', 'w') as file:
+        json.dump(articles, file)
 
 
 def makeSoup(url):
@@ -38,36 +70,36 @@ def getHrefs(url):
     # find all links on page 
     hrefs = [link.get('href') for link in soup.find_all('a')]
     # remove duplicates
-    print(len(hrefs))
     hrefs = list(dict.fromkeys(hrefs))
     # remove empty links
     hrefs = [href for href in hrefs if href is not None]
     # remove links that start with #
-    print(len(hrefs))
     hrefs = [href for href in hrefs if not href.startswith('#')]
     # remove links that only have one / 
     hrefs = [href for href in hrefs if href.count('/') > 2 ]
-    print(len(hrefs))
     # remove links that don't start with base url or /
     if 'ycombinator' not in url:
         hrefs = [href for href in hrefs if href.startswith('http') or href.startswith('/')]
 
-    print(len(hrefs))
+    print("URLs saved: ", len(hrefs))
 
     return hrefs
 
 
-urls = ['https://www.theguardian.com', 'https://www.bbc.co.uk/news', 'https://www.theverge.com', 'https://news.ycombinator.com', 'https://www.technologyreview.com']
-
-with open('hrefs.txt', 'w') as file:
-            
-    for url in urls:
-        print(url)
-        hrefs = getHrefs(url)
-        for href in hrefs:
+def scrape_urls(urls, output_file):
+    with open(output_file, 'w') as file:
+        for url in urls:
+            print(url)
+            hrefs = getHrefs(url)
+            for href in hrefs:
                 if not href.startswith('http'):
                     file.write(url + href + '\n')
                 else:
                     file.write(href + '\n')
+    file.close()
 
-file.close()
+
+urls = ['https://www.theguardian.com', 'https://www.bbc.co.uk/news', 'https://www.theverge.com', 'https://news.ycombinator.com', 'https://www.technologyreview.com']
+
+make_txt()
+scrape_urls(urls, 'hrefs.txt')
