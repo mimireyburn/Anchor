@@ -1,66 +1,51 @@
-from weaviate import Client, AuthClientPassword
-# Connect to Weaviate
-from scrape import get_data
-from embeddings import get_embedding
+import requests
 import json
+import os
 
-client = Client("http://localhost:8080")
+import weaviate
+import weaviate.classes as wvc
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = weaviate.connect_to_local(
+    port=8080,
+    grpc_port=50051,
+    headers={
+        "X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]  # Replace with your inference API key
+    }
+)
 
 def create_schema(client):
-    # Define schema
-    schema = {
-        "classes": [{
-            "class": "Article",
-            "properties": [
-                {"name": "url", "dataType": ["string"]},
-                {"name": "title", "dataType": ["string"]},
-                {"name": "content", "dataType": ["string"]},
-                {"name": "embedding", "dataType": ["number"], "indexInverted": False}
-            ]
-        }]
-    }
-    client.schema.create(schema)
+    articles = client.collections.create(
+        name="News",
+        vectorizer_config=wvc.Configure.Vectorizer.text2vec_openai(),  # If set to "none" you must always provide vectors yourself. Could be any other "text2vec-*" also.
+        generative_config=wvc.Configure.Generative.openai()  # Ensure the `generative-openai` module is used for generative queries
+    )
 
+def add_data(client, article_objs):
+    articles = client.collections.get("News")
+    articles.data.insert_many(articles_objs)
 
-def add_data(data):
-    """ 
-    Add data to Weaviate
-    data : {
-        "url": "https://example.com/",
-        "title": "Example Page One",
-        "content": "Article content", 
-        "embedding": [0.1, 0.2, 0.3, ...]
-    }
-    """
-    uuid = client.data_object.create(class_name="Article", data_object=data) 
-    print("UUID:", uuid)
-
-
-def query_similar_articles(embedding):
-    return client.query.get("Article", ["url", "title"]).with_near_vector(embedding).do()
-
-
-# create_schema(client)   
 
 urls = ['https://www.theguardian.com', 'https://www.bbc.co.uk/news', 'https://www.theverge.com', 'https://news.ycombinator.com', 'https://www.technologyreview.com']
-# get_data(urls)
-
-i=0
 
 with open('articles.json') as file:
-    data = file.read()
-    articles = json.loads(data)
+    data = json.load(file)
 
-while i < 5: 
-    for article in articles:
-        print(article)
+count = 0
+articles_objs = list()
+for article in data:
+    if count <= 200:
         if article['content'] != None:
-            article['embedding'] = get_embedding(article['content'])
-            print(article['embedding'])
-            print(article.keys())
-            add_data(article)
-            i += 1
+            articles_objs.append(article)
+            # print(article)
+            count += 1
+            print(count)
         else: 
             print("No content")
             continue
 
+# create_schema(client)
+add_data(client, articles_objs)
