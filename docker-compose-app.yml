@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - 5001:5001
+    volumes:
+      - .:/app
+  
+
+
+
